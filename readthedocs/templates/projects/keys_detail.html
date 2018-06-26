@@ -1,0 +1,22 @@
+{% extends "projects/project_edit_base.html" %}
+
+{% load i18n %}
+
+{% block title %}{% trans "Key Details" %}{% endblock %}
+
+{% block project-keys-active %}active{% endblock %}
+{% block project_edit_content_header %}{% trans "Key Details" %}{% endblock %}
+
+{% block project_edit_content %}
+  <dl class="project-key-detail">
+    <dt>{% trans "Fingerprint" %}</dt>
+    <dd class="project-key-fingerprint">
+      <pre>{{ key.fingerprint }}</pre>
+    </dd>
+
+    <dt>{% trans "Public key" %}</dt>
+    <dd class="project-key-public">
+      <pre>{{ key.public_key }}</pre>
+    </dd>
+  </dl>
+{% endblock %}

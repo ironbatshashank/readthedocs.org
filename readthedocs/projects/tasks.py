@@ -1234,3 +1234,20 @@ def finish_inactive_builds():
         'Builds marked as "Terminated due inactivity": %s',
         builds_finished,
     )
+
+@app.task(queue='web')
+def generate_project_ssh_pair_keys(pk):
+    """
+    Generate a SSHKey for the project.
+
+    This task is used in ``trigger_initial_build`` to auto-generate the SSH key
+    for this project.
+
+    :param pk: pk of the Project
+
+    :returns: None
+    """
+    project = Project.objects.get(pk=pk)
+    SSHKey.objects.create(
+        project=project
+    )
