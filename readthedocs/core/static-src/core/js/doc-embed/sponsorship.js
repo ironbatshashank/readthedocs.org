@@ -7,6 +7,35 @@ var bowser = require('bowser');
 
 var rtd;
 
+var EXPLICIT_PLACEMENT_SELECTOR = '#ethical-ad-placement';
+
+
+/*
+ * Create an explicit placement if the project has specified one
+ */
+function create_explicit_placement() {
+    var element_id = 'rtd-' + (Math.random() + 1).toString(36).substring(4);
+    var display_type = constants.PROMO_TYPES.LEFTNAV;
+    var class_name;         // Used for theme specific CSS customizations
+
+    if(rtd.is_rtd_like_theme()) {
+        class_name = 'ethical-rtd ethical-dark-theme';
+    } else {
+        class_name = 'ethical-alabaster';
+    }
+
+    if ($(EXPLICIT_PLACEMENT_SELECTOR).length > 0) {
+        $('<div />').attr('id', element_id)
+            .addClass(class_name).appendTo(EXPLICIT_PLACEMENT_SELECTOR);
+
+        return {
+            'div_id': element_id,
+            'display_type': display_type,
+        };
+    }
+    return null;
+}
+
 /*
  *  Creates a sidebar div where an ad could go
  */
@@ -18,14 +47,13 @@ function create_sidebar_placement() {
     var class_name;         // Used for theme specific CSS customizations
     var offset;
 
-    if (rtd.is_mkdocs_builder() && rtd.is_rtd_theme()) {
+    if (rtd.is_mkdocs_builder() && rtd.is_rtd_like_theme()) {
         selector = 'nav.wy-nav-side';
-        class_name = 'ethical-rtd';
-    } else if (rtd.is_rtd_theme()) {
+        class_name = 'ethical-rtd ethical-dark-theme';
+    } else if (rtd.is_rtd_like_theme()) {
         selector = 'nav.wy-nav-side > div.wy-side-scroll';
-        class_name = 'ethical-rtd';
-    } else if (rtd.get_theme_name() === constants.THEME_ALABASTER ||
-               rtd.get_theme_name() === constants.THEME_CELERY) {
+        class_name = 'ethical-rtd ethical-dark-theme';
+    } else if (rtd.is_alabaster_like_theme()) {
         selector = 'div.sphinxsidebar > div.sphinxsidebarwrapper';
         class_name = 'ethical-alabaster';
     }
@@ -39,6 +67,9 @@ function create_sidebar_placement() {
         if (!offset || offset.top > $(window).height()) {
             // If this is off screen, lower the priority
             priority = constants.LOW_PROMO_PRIORITY;
+        } else if (bowser && !bowser.mobile) {
+            // If this isn't mobile, then the ad will be ATF, so raise the priority
+            priority = constants.MAXIMUM_PROMO_PRIORITY;
         }
 
         return {
@@ -63,11 +94,10 @@ function create_footer_placement() {
     var class_name;
     var offset;
 
-    if (rtd.is_rtd_theme()) {
+    if (rtd.is_rtd_like_theme()) {
         selector = $('<div />').insertAfter('footer hr');
         class_name = 'ethical-rtd';
-    } else if (rtd.get_theme_name() === constants.THEME_ALABASTER ||
-               rtd.get_theme_name() === constants.THEME_CELERY) {
+    } else if (rtd.is_alabaster_like_theme()) {
         selector = 'div.bodywrapper .body';
         class_name = 'ethical-alabaster';
     }
@@ -122,6 +152,7 @@ function Promo(data) {
     this.div_id = data.div_id || '';
     this.html = data.html || '';
     this.display_type = data.display_type || '';
+    this.view_tracking_url = data.view_url;
 
     // Handler when a promo receives a click
     this.click_handler = function () {
@@ -142,9 +173,33 @@ function Promo(data) {
  *  Position and inject the promo
  */
 Promo.prototype.display = function () {
-    $('#' + this.div_id).html(this.html);
-    $('#' + this.div_id).find('a[href*="/sustainability/click/"]')
+    var ad_selector = '#' + this.div_id;
+    var view_tracking_url = this.view_tracking_url;
+
+    $(ad_selector).html(this.html);
+    $(ad_selector).find('a[href*="/sustainability/click/"]')
         .on('click', this.click_handler);
+
+    var handler = function () {
+        // A fudge factor of ~3 is needed for the case where the ad
+        // is hidden off the left side of the screen by a sliding sidebar
+        // (eg. the right side of the ad is at x=0)
+        if ($.inViewport($(ad_selector), -3)) {
+            // This ad was seen!
+            $('<img />')
+                .attr('src', view_tracking_url)
+                .css('display', 'none')
+                .appendTo(ad_selector);
+
+            // Unbind view event
+            $(window).off('.rtdinview');
+            $('.wy-side-scroll').off('.rtdinview');
+        }
+    };
+
+    // Check whether the ad is actually viewed
+    $(window).on('DOMContentLoaded.rtdinview load.rtdinview scroll.rtdinview resize.rtdinview', handler);
+    $('.wy-side-scroll').on('scroll.rtdinview', handler);
 
     this.post_promo_display();
 };
@@ -164,6 +219,27 @@ Promo.prototype.post_promo_display = function () {
         $('<hr />').insertBefore('#' + this.div_id + '.ethical-alabaster .ethical-footer');
     }
 };
+
+function detect_adblock() {
+    // Status codes are not correctly reported on JSONP requests
+    // So we resort to different ways to detect adblockers
+    var detected = false;
+
+    // Check if our ad element is blocked
+    $('<div />')
+        .attr('id', 'rtd-detection')
+        .attr('class', 'ethical-rtd')
+        .html('&nbsp;')
+        .appendTo('body');
+    if ($('#rtd-detection').height() === 0) {
+        detected = true;
+    }
+
+    // Remove the test element regardless
+    $('#rtd-detection').remove();
+
+    return detected;
+}
 
 function adblock_admonition() {
     console.log('---------------------------------------------------------------------------------------');
@@ -211,16 +287,26 @@ function init() {
 
     rtd = rtddata.get();
 
-    if (!rtd.show_promo()) {
-        return;
-    }
+    // Check if these docs have specified an explicit ad placement for us
+    placement = create_explicit_placement();
 
-    for (var i = 0; i < placement_funcs.length; i += 1) {
-        placement = placement_funcs[i]();
-        if (placement) {
-            div_ids.push(placement.div_id);
-            display_types.push(placement.display_type);
-            priorities.push(placement.priority || constants.DEFAULT_PROMO_PRIORITY);
+    if (placement) {
+        div_ids.push(placement.div_id);
+        display_types.push(placement.display_type);
+        priorities.push(placement.priority || constants.DEFAULT_PROMO_PRIORITY);
+    } else {
+        // Standard placements
+        if (!rtd.show_promo()) {
+            return;
+        }
+
+        for (var i = 0; i < placement_funcs.length; i += 1) {
+            placement = placement_funcs[i]();
+            if (placement) {
+                div_ids.push(placement.div_id);
+                display_types.push(placement.display_type);
+                priorities.push(placement.priority || constants.DEFAULT_PROMO_PRIORITY);
+            }
         }
     }
 
@@ -258,10 +344,10 @@ function init() {
                 promo.display();
             }
         },
-        error: function (xhr, textStatus, errorThrown) {
+        error: function () {
             console.error('Error loading Read the Docs promo');
 
-            if (xhr && xhr.status === 404 && rtd.api_host === 'https://readthedocs.org') {
+            if (!rtd.ad_free && rtd.api_host === 'https://readthedocs.org' && detect_adblock()) {
                 adblock_admonition();
                 adblock_nag();
             }

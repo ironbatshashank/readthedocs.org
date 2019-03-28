@@ -1,26 +1,25 @@
-from __future__ import division, print_function, unicode_literals
-
+# -*- coding: utf-8 -*-
 from os import path
 
 import pytest
-import six
 import yamale
-from readthedocs.config.tests import utils
 from yamale.validators import DefaultValidators, Validator
+
+from readthedocs.config.tests import utils
+
 
 V2_SCHEMA = path.join(
     path.dirname(__file__),
-    '../fixtures/spec/v2/schema.yml'
+    '../fixtures/spec/v2/schema.yml',
 )
 
 
 class PathValidator(Validator):
 
     """
-    Path validator
+    Path validator.
 
-    Checks if the given value is a string and a existing
-    file.
+    Checks if the given value is a string and a existing file.
     """
 
     tag = 'path'
@@ -28,10 +27,10 @@ class PathValidator(Validator):
     configuration_file = '.'
 
     def _is_valid(self, value):
-        if isinstance(value, six.string_types):
+        if isinstance(value, str):
             file_ = path.join(
                 path.dirname(self.configuration_file),
-                value
+                value,
             )
             return path.exists(file_)
         return False
@@ -59,7 +58,7 @@ def validate_schema(file):
     data = yamale.make_data(file)
     schema = yamale.make_schema(
         V2_SCHEMA,
-        validators=validators
+        validators=validators,
     )
     yamale.validate(schema, data)
 
@@ -74,7 +73,7 @@ def assertInvalidConfig(tmpdir, content, msgs=()):
     with pytest.raises(ValueError) as excinfo:
         validate_schema(file)
     for msg in msgs:
-        msg in str(excinfo.value)
+        assert msg in str(excinfo.value)
 
 
 def test_minimal_config(tmpdir):
@@ -85,7 +84,7 @@ def test_invalid_version(tmpdir):
     assertInvalidConfig(
         tmpdir,
         'version: "latest"',
-        ['version:', "'latest' not in"]
+        ['version:', "'latest' not in"],
     )
 
 
@@ -93,7 +92,7 @@ def test_invalid_version_1(tmpdir):
     assertInvalidConfig(
         tmpdir,
         'version: "1"',
-        ['version', "'1' not in"]
+        ['version', "'1' not in"],
     )
 
 
@@ -135,7 +134,7 @@ formats:
     assertInvalidConfig(
         tmpdir,
         content,
-        ['formats', "'invalidformat' not in"]
+        ['formats', "'invalidformat' not in"],
     )
 
 
@@ -165,7 +164,7 @@ conda:
     assertInvalidConfig(
         tmpdir,
         content,
-        ['environment.yaml', 'is not a path']
+        ['environment.yaml', 'is not a path'],
     )
 
 
@@ -178,7 +177,7 @@ conda:
     assertInvalidConfig(
         tmpdir,
         content,
-        ['conda.environment: Required']
+        ['conda.environment: Required'],
     )
 
 
@@ -210,7 +209,7 @@ build:
     assertInvalidConfig(
         tmpdir,
         content,
-        ["build.image: '9.0' not in"]
+        ["build.image: '9.0' not in"],
     )
 
 
@@ -233,7 +232,7 @@ python:
     assertInvalidConfig(
         tmpdir,
         content,
-        ["version: '4' not in"]
+        ["version: '4' not in"],
     )
 
 
@@ -250,40 +249,35 @@ def test_python_requirements(tmpdir):
     content = '''
 version: "2"
 python:
-  requirements: docs/requirements.txt
+  install:
+    - requirements: docs/requirements.txt
     '''
     assertValidConfig(tmpdir, content)
 
 
-def test_python_requirements_invalid(tmpdir):
+def test_python_install_requirements(tmpdir):
     content = '''
 version: "2"
 python:
-  requirements: 23
+  install:
+    - requirements: 23
     '''
     assertInvalidConfig(
         tmpdir,
         content,
-        ['requirements:', "'23' is not a path"]
+        ['requirements:', "'23' is not a path"],
     )
 
 
-def test_python_requirements_null(tmpdir):
-    content = '''
-version: "2"
-python:
-  requirements: null
-    '''
-    assertValidConfig(tmpdir, content)
-
-
-@pytest.mark.parametrize('value', ['pip', 'setup.py'])
+@pytest.mark.parametrize('value', ['pip', 'setuptools'])
 def test_python_install(tmpdir, value):
     content = '''
 version: "2"
 python:
   version: "3.6"
-  install: {value}
+  install:
+    - path: .
+      method: {value}
     '''
     assertValidConfig(tmpdir, content.format(value=value))
 
@@ -297,7 +291,7 @@ python:
     assertInvalidConfig(
         tmpdir,
         content,
-        ["python.install: 'guido' not in"]
+        ["python.install: 'guido' is not a list"],
     )
 
 
@@ -310,38 +304,96 @@ python:
     assertValidConfig(tmpdir, content)
 
 
-def test_python_extra_requirements(tmpdir):
+def test_python_install_extra_requirements(tmpdir):
     content = '''
 version: "2"
 python:
-  extra_requirements:
-    - test
-    - dev
+  install:
+    - path: .
+      extra_requirements:
+        - test
+        - dev
     '''
     assertValidConfig(tmpdir, content)
 
 
-def test_python_extra_requirements_invalid(tmpdir):
-    content = '''
-version: "2"
-python:
-  extra_requirements:
-    - 1
-    - dev
-    '''
-    assertInvalidConfig(
-        tmpdir,
-        content,
-        ["'1' is not a str"]
-    )
-
-
 @pytest.mark.parametrize('value', ['', 'null', '[]'])
-def test_python_extra_requirements_empty(tmpdir, value):
+def test_python_install_extra_requirements_empty(tmpdir, value):
     content = '''
 version: "2"
 python:
-  extra_requirements: {value}
+  install:
+    - path: .
+      extra_requirements: {value}
+    '''
+    assertValidConfig(tmpdir, content.format(value=value))
+
+
+@pytest.mark.parametrize('pipfile', ['another_docs/', '.', 'project/'])
+def test_python_install_pipfile(tmpdir, pipfile):
+    utils.apply_fs(
+        tmpdir, {
+            'another_docs': {
+                'Pipfile': '',
+            },
+            'project': {},
+            'Pipfile': '',
+        },
+    )
+    content = '''
+version: "2"
+python:
+  install:
+    - pipfile: {}
+    '''
+    assertValidConfig(tmpdir, content.format(pipfile))
+
+
+@pytest.mark.parametrize('pipfile', ['docs/', '.', 'project/'])
+def test_python_install_pipfile_invalid(tmpdir, pipfile):
+    utils.apply_fs(tmpdir, {})
+    content = '''
+version: "2"
+python:
+  install:
+    - pipfile: {}
+    '''
+    content.format(pipfile)
+    assertInvalidConfig(tmpdir, content, ['is not a path'])
+
+
+@pytest.mark.parametrize('value', ['true', 'false'])
+def test_python_install_pipfile_dev(tmpdir, value):
+    content = '''
+version: "2"
+python:
+  install:
+    - pipfile: .
+      dev: {value}
+    '''
+    assertValidConfig(tmpdir, content.format(value=value))
+
+
+@pytest.mark.parametrize('value', ['true', 'false'])
+def test_python_install_pipfile_skip_lock(tmpdir, value):
+    content = '''
+version: "2"
+python:
+  install:
+    - pipfile: .
+      skip_lock: {value}
+    '''
+    assertValidConfig(tmpdir, content.format(value=value))
+
+
+@pytest.mark.parametrize('value', ['true', 'false'])
+def test_python_install_pipfile_ignore_pipfile(tmpdir, value):
+    content = '''
+version: "2"
+python:
+  install:
+    - pipfile: .
+      ignore_pipfile: {value}
     '''
     assertValidConfig(tmpdir, content.format(value=value))
 
@@ -366,7 +418,7 @@ python:
     assertInvalidConfig(
         tmpdir,
         content.format(value=value),
-        ['is not a bool']
+        ['is not a bool'],
     )
 
 
@@ -398,7 +450,7 @@ sphinx:
     assertInvalidConfig(
         tmpdir,
         content,
-        ['is not a path']
+        ['is not a path'],
     )
 
 
@@ -421,7 +473,7 @@ sphinx:
     assertInvalidConfig(
         tmpdir,
         content.format(value=value),
-        ['is not a bool']
+        ['is not a bool'],
     )
 
 
@@ -453,7 +505,7 @@ mkdocs:
     assertInvalidConfig(
         tmpdir,
         content,
-        ['is not a path']
+        ['is not a path'],
     )
 
 
@@ -476,7 +528,7 @@ mkdocs:
     assertInvalidConfig(
         tmpdir,
         content.format(value=value),
-        ['is not a bool']
+        ['is not a bool'],
     )
 
 
@@ -544,7 +596,7 @@ redirects:
     assertInvalidConfig(
         tmpdir,
         content,
-        ['is not a str']
+        ['is not a str'],
     )
 
 

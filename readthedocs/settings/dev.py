@@ -48,13 +48,28 @@ class CommunityDevSettings(CommunityBaseSettings):
         'test:8000',
     )
 
+    # Disable auto syncing elasticsearch documents in development
+    ELASTICSEARCH_DSL_AUTOSYNC = False
+
     @property
     def LOGGING(self):  # noqa - avoid pep8 N802
-        logging = super(CommunityDevSettings, self).LOGGING
+        logging = super().LOGGING
         logging['formatters']['default']['format'] = '[%(asctime)s] ' + self.LOG_FORMAT
         # Allow Sphinx and other tools to create loggers
         logging['disable_existing_loggers'] = False
         return logging
+
+    @property
+    def INSTALLED_APPS(self):
+        apps = super().INSTALLED_APPS
+        apps.append('debug_toolbar')
+        return apps
+
+    @property
+    def MIDDLEWARE(self):
+        middlewares = list(super().MIDDLEWARE)
+        middlewares.insert(0, 'debug_toolbar.middleware.DebugToolbarMiddleware')
+        return middlewares
 
 
 CommunityDevSettings.load_settings(__name__)

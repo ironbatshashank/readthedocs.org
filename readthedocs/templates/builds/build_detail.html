@@ -72,7 +72,7 @@ $(document).ready(function () {
     </ul>
 
     <div class="build-id">
-      {% blocktrans with build_id=build.pk %}
+      {% blocktrans trimmed with build_id=build.pk %}
         Build #{{ build_id }}
       {% endblocktrans %}
     </div>
@@ -118,7 +118,7 @@ $(document).ready(function () {
         <div class="build-ideas">
           <p>
             {% url 'wipe_version' build.version.project.slug build.version.slug as wipe_url %}
-            {% blocktrans %}
+            {% blocktrans trimmed %}
               Having trouble with your build environment?
               Try <a href="{{ wipe_url }}">resetting it</a>.
             {% endblocktrans %}
@@ -128,9 +128,21 @@ $(document).ready(function () {
         <div class="build-ideas">
           <p>
             {% url 'projects_advanced' build.version.project.slug as advanced_url %}
-            {% blocktrans %}
+            {% blocktrans trimmed %}
               Don't want <em>setup.py install</em> called?
               Change the <strong>Install Project</strong> setting in your <a href="{{ advanced_url }}">advanced settings</a>.
+            {% endblocktrans %}
+          </p>
+        </div>
+      {% endif %}
+      {% if build.finished and not build.using_latest_config %}
+        <div class="build-ideas">
+          <p>
+            {% blocktrans trimmed with config_file_link="https://docs.readthedocs.io/page/config-file/v2.html" %}
+              <strong>Configure your documentation builds!</strong>
+              Adding a <a href="{{ config_file_link }}">.readthedocs.yml</a> file to your project
+              is the recommended way to configure your documentation builds.
+              You can declare dependencies, set up submodules, and many other great features.
             {% endblocktrans %}
           </p>
         </div>
@@ -176,6 +188,15 @@ $(document).ready(function () {
         <p class="build-error"
            data-bind="text: error">
           {{ build.error }}
+        </p>
+        <p>
+          {% block github_issue_link %}
+            {% if issue_url %}
+              {% blocktrans trimmed with url=issue_url %}
+                <a href="{{ url }}">Report any build issues here</a>.
+              {% endblocktrans %}
+            {% endif %}
+          {% endblock %}
         </p>
       </div>
 

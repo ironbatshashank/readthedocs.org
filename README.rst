@@ -1,7 +1,7 @@
 Welcome to Read the Docs
 ========================
 
-|build-status| |docs|
+|build-status| |docs| |coverage|
 
 Purpose
 -------
@@ -70,9 +70,14 @@ when you push to GitHub.
     :scale: 100%
     :target: https://docs.readthedocs.io/en/latest/?badge=latest
 
+.. |coverage| image:: https://codecov.io/gh/rtfd/readthedocs.org/branch/master/graph/badge.svg
+    :alt: Test coverage
+    :scale: 100%
+    :target: https://codecov.io/gh/rtfd/readthedocs.org
+
 License
 -------
 
-`MIT`_ © 2010-2017 Read the Docs, Inc & contributors
+`MIT`_ © 2010-2019 Read the Docs, Inc & contributors
 
 .. _MIT: LICENSE

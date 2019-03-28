@@ -7,6 +7,7 @@
 .DS_Store
 .cache
 .coverage
+.coverage.*
 .idea
 .vagrant
 .vscode
@@ -22,7 +23,7 @@ celerybeat-schedule.*
 deploy/.vagrant
 dist/*
 local_settings.py
-locks/*
+locks/**
 logs/*
 media/dash
 media/epub
@@ -32,6 +33,7 @@ media/json
 media/man
 media/pdf
 media/static
+/static
 node_modules
 package-lock.json
 readthedocs/rtd_tests/builds
@@ -60,3 +62,5 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+dev.db-journal

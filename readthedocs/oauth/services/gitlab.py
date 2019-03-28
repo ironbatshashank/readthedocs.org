@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
 """OAuth utility functions."""
-
-from __future__ import division, print_function, unicode_literals
 
 import json
 import logging
@@ -9,15 +6,18 @@ import re
 
 from allauth.socialaccount.providers.gitlab.views import GitLabOAuth2Adapter
 from django.conf import settings
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 from requests.exceptions import RequestException
 
 from readthedocs.builds.utils import get_gitlab_username_repo
 from readthedocs.integrations.models import Integration
+from readthedocs.integrations.utils import get_secret
 from readthedocs.projects.models import Project
 
 from ..models import RemoteOrganization, RemoteRepository
-from .base import Service
+from .base import Service, SyncServiceError
+
+
 
 try:
     from urlparse import urljoin, urlparse
@@ -41,7 +41,8 @@ class GitLabService(Service):
     # Just use the network location to determine if it's a GitLab project
     # because private repos have another base url, eg. git@gitlab.example.com
     url_pattern = re.compile(
-        re.escape(urlparse(adapter.provider_base_url).netloc))
+        re.escape(urlparse(adapter.provider_base_url).netloc),
+    )
 
     def _get_repo_id(self, project):
         # The ID or URL-encoded path of the project
@@ -91,10 +92,11 @@ class GitLabService(Service):
             for repo in repos:
                 self.create_repository(repo)
         except (TypeError, ValueError):
-            log.exception('Error syncing GitLab repositories')
-            raise Exception(
-                'Could not sync your GitLab repositories, try reconnecting '
-                'your account')
+            log.warning('Error syncing GitLab repositories')
+            raise SyncServiceError(
+                'Could not sync your GitLab repositories, '
+                'try reconnecting your account'
+            )
 
     def sync_organizations(self):
         orgs = self.paginate(
@@ -121,10 +123,11 @@ class GitLabService(Service):
                 for repo in org_repos:
                     self.create_repository(repo, organization=org_obj)
         except (TypeError, ValueError):
-            log.exception('Error syncing GitLab organizations')
-            raise Exception(
-                'Could not sync your GitLab organization, try reconnecting '
-                'your account')
+            log.warning('Error syncing GitLab organizations')
+            raise SyncServiceError(
+                'Could not sync your GitLab organization, '
+                'try reconnecting your account'
+            )
 
     def is_owned_by(self, owner_id):
         return self.account.extra_data['id'] == owner_id
@@ -161,9 +164,8 @@ class GitLabService(Service):
                     fields['name'],
                 )
                 return None
-            else:
-                repo.organization = organization
 
+            repo.organization = organization
             repo.name = fields['name']
             repo.description = fields['description']
             repo.ssh_url = fields['ssh_url_to_repo']
@@ -251,6 +253,7 @@ class GitLabService(Service):
                     },
                 ),
             ),
+            'token': integration.secret,
 
             # Optional
             'issues_events': False,
@@ -274,7 +277,6 @@ class GitLabService(Service):
             project=project,
             integration_type=Integration.GITLAB_WEBHOOK,
         )
-
         repo_id = self._get_repo_id(project)
         if repo_id is None:
             return (False, None)
@@ -332,6 +334,7 @@ class GitLabService(Service):
         if repo_id is None:
             return (False, None)
 
+        integration.recreate_secret()
         data = self.get_webhook_data(repo_id, project, integration)
         hook_id = integration.provider_data.get('id')
         resp = None
@@ -350,7 +353,9 @@ class GitLabService(Service):
                 integration.provider_data = recv_data
                 integration.save()
                 log.info(
-                    'GitLab webhook update successful for project: %s', project)
+                    'GitLab webhook update successful for project: %s',
+                    project,
+                )
                 return (True, resp)
 
             # GitLab returns 404 when the webhook doesn't exist. In this case,
@@ -361,7 +366,9 @@ class GitLabService(Service):
         # Catch exceptions with request or deserializing JSON
         except (RequestException, ValueError):
             log.exception(
-                'GitLab webhook update failed for project: %s', project)
+                'GitLab webhook update failed for project: %s',
+                project,
+            )
         else:
             log.error(
                 'GitLab webhook update failed for project: %s',

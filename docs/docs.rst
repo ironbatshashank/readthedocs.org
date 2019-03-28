@@ -5,7 +5,16 @@ As one might expect,
 the documentation for Read the Docs is built using Sphinx and hosted on Read the Docs.
 The docs are kept in the ``docs/`` directory at the top of the source tree.
 
-You can build the docs by installing ``Sphinx`` and running::
+You can build the docs by first ensuring this project is set up locally according to the :doc:`Installation Guide <install>`.
+Follow the instructions just up to the point of activating the virtual enviroment and then continue here.
+
+Next, install the documentation dependencies using ``pip`` (make sure you are inside of the virtual environment)::
+
+    pip install -r requirements/local-docs-build.txt
+
+This installs ``Sphinx``, amongst other things.
+
+After that is done, build the documentation by running::
 
 	# in the docs directory
 	make html
@@ -36,4 +45,6 @@ Content
   but rather break them on semantic meaning (e.g. periods or commas).
   Read more about this `here <http://rhodesmill.org/brandon/2012/one-sentence-per-line/>`_.
 * If you are cross-referencing to a different page within our website,
-  use the ``doc`` directive and not a hyperlink.
+  use the ``doc`` role and not a hyperlink.
+* If you are cross-referencing to a section within our website,
+  use the ``ref`` role with the label from the `autosectionlabel extension <http://www.sphinx-doc.org/en/master/usage/extensions/autosectionlabel.html>`__.
